@@ -55,11 +55,12 @@ bob:EatBagel()
 print(bob:HasBagel()) --> true
 ```
 
-Metamethods or operator overloads can be specified similarly to methods.  They follow the default Lua 5.1 metamethod naming patterns.
+Member names matching any metamethods from Lua 5.1 are treated as metamethods for class instances.
+
 ```lua
 local Number = Class{
 	Constructor = function(value)
-		self.value = n
+		self.value = value
 	end;
 	__add = function(op0, op1)
 		return op0.value + op1.value
