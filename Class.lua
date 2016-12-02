@@ -1,9 +1,9 @@
 local Class do
 
 	-- config ---------------------
-	local CTOR_KEY  = 'Constructor' -- Name of the class constructor
-	local SHADOWING = true          -- Sets whether class member names can be shadowed
-	local CLASSREF  = 'static'      -- Class itself can be referred to in a method as self[CLASSREF]
+	local CTOR_KEY  = 'Init'  -- Name of the class constructor
+	local SHADOWING = false   -- Sets whether class member names can be shadowed
+	local CLASSREF  = 'class' -- Class itself can be referred to in a method as self[CLASSREF]
 	-------------------------------
 
 	local l_metamethods = {
@@ -26,6 +26,7 @@ local Class do
 	}
 
 	local next = next
+	local type = type
 	local getmt = getmetatable
 	local setmt = setmetatable
 
@@ -33,11 +34,11 @@ local Class do
 		local tostring = tostring
 		local gsub = string.gsub
 
-		local function Serialize(obj, name)
+		local function Serialize(obj, id)
 			local mt = getmt(obj)
 			local _ts = mt.__tostring
 			mt.__tostring = nil
-			local r = gsub(tostring(obj), 'table', name)
+			local r = gsub(tostring(obj), 'table', id)
 			mt.__tostring = _ts
 			return r
 		end
@@ -51,84 +52,118 @@ local Class do
 		end
 	end
 
-	local function Instantiate(t, idx, mt, ctor)
-		if not idx then
-			idx = {}
-			mt = {
-				__index = idx;
-				__tostring = __tostring_inst;
-			}	
+	local function Instantiate(t)
+		local mt = {
+			__index = t;
+		}
+		local ctor = t[CTOR_KEY]
+		if ctor then
+			t[CTOR_KEY] = nil
 		end
-		if t[CTOR_KEY] then
-			ctor, t[CTOR_KEY] = t[CTOR_KEY], nil
-		end
+		local __index = t.__index
+		t.__index = nil
+		local sto_mt = false
 		for i, j in next, t do
-			(l_metamethods[i] and mt or idx)[i] = j
+			if l_metamethods[i] then
+				sto_mt = true
+				mt[i], t[i] = j, nil
+			end
 		end
-		idx[CLASSREF] = idx
-		t = nil
-		return setmt(idx, {
-			c = ctor;
-			m = mt;
-			__call = ctor and function(_, ...)
-				local this = setmt({}, mt)
-				if ctor then
-					ctor(this, ...)
-				end
-				return this
-			end or function()
-				return setmt({}, mt)
-			end;
+		if not mt.__tostring then
+			mt.__tostring = __tostring_inst
+		end
+		local __ctof = ctor and function(_, ...)
+			local this = setmt({}, mt)
+			if ctor then
+				ctor(this, ...)
+			end
+			return this
+		end or function()
+			return setmt({}, mt)
+		end
+		if not mt.__call then
+			mt.__call = __ctof
+		end
+		t[CLASSREF] = t
+		return setmt(t, {
+			__call = __ctof;
+			__index = __index;
+			__m = sto_mt and mt;
 			__tostring = __tostring_class;
 		})
 	end
 
+	local function EmptyCheck(t)
+		if type(t) ~= 'table' then
+			error(('Class body must be of type table (got %s)'):format(type(t)), 2)
+		end
+		return Instantiate(t)
+	end
+	
 	function Class(...)
-		local m0 = getmt(...)
-		if m0 then
+		if not ... then
+			return EmptyCheck
+		end
+		local meta = getmt(...)
+		if meta then
 			local mli = {...}
 			return function(t)
-				local idx, mt, i, ctor = {}, {}, 1
+				if type(t) ~= 'table' then
+					error(('Class body must be of type table (got %s)'):format(type(t)), 2)
+				end
+				local i = 1
 				local lv = mli[i]
 				repeat
-					local _ctor = m0.c
-					if _ctor then
-						ctor = _ctor
+					if meta.__index then
+						if SHADOWING and not t.__index then
+							t.__index = meta.__index
+						elseif t.__index then
+							error('Class member name conflict: __index', 2)
+						end
 					end
-					for j, k in next, m0.m do
-						if j ~= '__index' then
-							mt[j] = k
+					local _m = meta.__m
+					if _m then
+						if SHADOWING then
+							for j, k in next, _m do
+								if not t[j] then
+									t[j] = k
+								end
+							end
 						else
-							error('Cannot define __index', 2)
+							for j, k in next, _m do
+								if t[j] then
+									error(('Class member name conflict: %s'):format(j), 2)
+								end
+								t[j] = k
+							end
 						end
 					end
 					if SHADOWING then
 						for j, k in next, lv do
-							idx[j] = k
+							if not t[j] then
+								t[j] = k
+							end
 						end
 					else
 						for j, k in next, lv do
-							if idx[j] or t[j] then
-								error(('Member name conflict: `%s`'):format(j), 2)
+							if t[j] then
+								error(('Class member name conflict: %s'):format(j), 2)
 							end
-							idx[j] = k
+							t[j] = k
 						end
 					end
 					i = i + 1
 					lv = mli[i]
-					m0 = getmt(lv)
+					meta = lv and getmt(lv)
 				until not lv
-				mt.__index = idx
-				return Instantiate(t, idx, mt, ctor)
+				return Instantiate(t)
 			end
 		else
-			local arg = ...
-			if type(arg) ~= 'table' then
-				error(('Class body must be a table (got a %s)'):format(type(arg)), 2)
+			local t = ...
+			if type(t) ~= 'table' then
+				error(('Class body must be of type table (got %s)'):format(type(t)), 2)
 			end
-			return Instantiate(arg)
+			return Instantiate(t)
 		end
 	end
 end
-
-return Class
