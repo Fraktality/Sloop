@@ -1,76 +1,55 @@
 local Class do
+	-----------------------------
+	local CTOR_KEY   = 'Init'   -- Name of the class constructor
+	local SHADOWLESS = true     -- If true, members can't be shadowed.
+	local CLASSREF   = 'static' -- Class itself can be referred to in a method as self[CLASSREF]
+	-----------------------------
 
-	-- config ---------------------
-	local CTOR_KEY  = 'Init'  -- Name of the class constructor
-	local SHADOWING = false   -- Sets whether class member names can be shadowed
-	local CLASSREF  = 'class' -- Class itself can be referred to in a method as self[CLASSREF]
-	-------------------------------
-
-	local l_metamethods = {
-		__add      = true;
-		__call     = true;
-		__concat   = true;
-		__div      = true;
-		__eq       = true;
-		__gc       = true;
-		__le       = true;
-		__len      = true;
-		__lt       = true;
-		__mod      = true;
-		__mul      = true;
-		__newindex = true;
-		__pow      = true;
-		__sub      = true;
-		__tostring = true;
-		__unm      = true;
-	}
+	local err_btype  = 'Class body must be of type table (got %s)'
+	local err_shadow = 'Class member name conflict: %s'
 
 	local next = next
 	local type = type
 	local getmt = getmetatable
 	local setmt = setmetatable
 
-	local __tostring_class, __tostring_inst do
-		local tostring = tostring
-		local gsub = string.gsub
-
-		local function Serialize(obj, id)
-			local mt = getmt(obj)
-			local _ts = mt.__tostring
-			mt.__tostring = nil
-			local r = gsub(tostring(obj), 'table', id)
-			mt.__tostring = _ts
-			return r
-		end
-
-		function __tostring_class(obj)
-			return Serialize(obj, 'class')
-		end
-
-		function __tostring_inst(obj)
-			return Serialize(obj, 'class_inst')
-		end
-	end
+	local l_eventname = {
+		__add       = true;
+		__call      = true;
+		__concat    = true;
+		__div       = true;
+		__eq        = true;
+		__gc        = true;
+		__le        = true;
+		__len       = true;
+		__lt        = true;
+		__metatable = true;
+		__mod       = true;
+		__mul       = true;
+		__newindex  = true;
+		__pow       = true;
+		__sub       = true;
+		__tostring  = true;
+		__unm       = true;
+	}
 
 	local function Instantiate(t)
-		local mt = {
-			__index = t;
-		}
-		local ctor = t[CTOR_KEY]
-		if ctor then
-			t[CTOR_KEY] = nil
-		end
-		local __index = t.__index
-		t.__index = nil
-		local sto_mt = false
-		for i, j in next, t do
-			if l_metamethods[i] then
-				sto_mt = true
-				mt[i], t[i] = j, nil
+		local mt, ctor = {}, t[CTOR_KEY]
+		t[CTOR_KEY] = nil
+		local msto, cidx
+		if t.__index then
+			cidx = t.__index
+			function mt.__index(st, k)
+				return t[k] or cidx(st, k)
 			end
+			t.__index = nil
+		else
+			mt.__index = t
 		end
-		if not mt.__tostring then
-			mt.__tostring = __tostring_inst
+		for i, j in next, t do
+			if l_eventname[i] then
+				msto, mt[i], t[i] = true, j, nil
+			end
 		end
 		local __ctof = ctor and function(_, ...)
 			local this = setmt({}, mt)
@@ -81,75 +60,58 @@ local Class do
 		end or function()
 			return setmt({}, mt)
 		end
-		if not mt.__call then
-			mt.__call = __ctof
-		end
-		t[CLASSREF] = t
+		t[CTOR_KEY], t[CLASSREF] = __ctof, t
 		return setmt(t, {
 			__call = __ctof;
-			__index = __index;
-			__m = sto_mt and mt;
-			__tostring = __tostring_class;
+			msto and mt;
+			cidx;
 		})
 	end
 
-	local function EmptyCheck(t)
+	local function EmptyInherit(t)
 		if type(t) ~= 'table' then
-			error(('Class body must be of type table (got %s)'):format(type(t)), 2)
+			error(err_btype:format(type(t)), 2)
 		end
 		return Instantiate(t)
 	end
 	
 	function Class(...)
 		if not ... then
-			return EmptyCheck
+			return EmptyInherit
 		end
 		local meta = getmt(...)
 		if meta then
 			local mli = {...}
 			return function(t)
 				if type(t) ~= 'table' then
-					error(('Class body must be of type table (got %s)'):format(type(t)), 2)
+					error(err_btype:format(type(t)), 2)
 				end
 				local i = 1
 				local lv = mli[i]
 				repeat
-					if meta.__index then
-						if SHADOWING and not t.__index then
-							t.__index = meta.__index
-						elseif t.__index then
-							error('Class member name conflict: __index', 2)
-						end
-					end
-					local _m = meta.__m
-					if _m then
-						if SHADOWING then
-							for j, k in next, _m do
-								if not t[j] then
-									t[j] = k
-								end
-							end
+					for j, k in next, lv do
+						if t[j] ~= k and j ~= CTOR_KEY and SHADOWLESS then
+							error(err_shadow:format(j), 2)
 						else
-							for j, k in next, _m do
-								if t[j] then
-									error(('Class member name conflict: %s'):format(j), 2)
-								end
+							t[j] = k
+						end
+					end
+					local events = meta[1]
+					if events then
+						for j, k in next, events do
+							if t[j] ~= k and SHADOWLESS then
+								error(err_shadow:format(j), 2)
+							else
 								t[j] = k
 							end
 						end
 					end
-					if SHADOWING then
-						for j, k in next, lv do
-							if not t[j] then
-								t[j] = k
-							end
-						end
-					else
-						for j, k in next, lv do
-							if t[j] then
-								error(('Class member name conflict: %s'):format(j), 2)
-							end
-							t[j] = k
+					local cidx = meta[2]
+					if cidx then
+						if t.__index ~= cidx and SHADOWLESS then
+							error(err_shadow:format('__index'), 2)
+						else
+							t.__index = cidx
 						end
 					end
 					i = i + 1
@@ -161,9 +123,12 @@ local Class do
 		else
 			local t = ...
 			if type(t) ~= 'table' then
-				error(('Class body must be of type table (got %s)'):format(type(t)), 2)
+				error(err_btype:format(type(t)), 2)
 			end
 			return Instantiate(t)
 		end
 	end
 end
+
+
+return Class
