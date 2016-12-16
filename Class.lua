@@ -1,12 +1,11 @@
-----------------------------------------------------------------
+---------------------------------------------------------------------
 -- Class module for Lua.
 --
 -- Copyright (c) 2016 Parker Stebbins. All rights reserved.
 -- Released under the MIT license.
 --
--- Documentation can be found at
--- https://github.com/Fraktality/LOOP
-----------------------------------------------------------------
+-- Documentation can be found at https://github.com/Fraktality/LOOP
+---------------------------------------------------------------------
 
 
 local Class do
