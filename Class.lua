@@ -5,14 +5,16 @@
 -- Released under the MIT license.
 --
 -- Documentation can be found at
--- https://github.com/Fraktality/LOOP/blob/master/README.md
+-- https://github.com/Fraktality/LOOP
 ----------------------------------------------------------------
 
 
 local Class do
+	
 	local CTOR_KEY   = 'Init'   -- Constructor name
 	local STATIC_KEY = 'static' -- class=class_inst[STATIC_KEY]
-	local TYPECHECK  = true     -- Typecheck class bodies
+	local TYPECHECK  = true     -- Enforce class body type if true
+
 	--------------------------------------------------------------
 
 	local err_btype  = 'Class body must be of type table (got %s)'
