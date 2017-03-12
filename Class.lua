@@ -8,21 +8,25 @@
 ---------------------------------------------------------------------
 
 
+
 local Class do
 	
 	local CTOR_KEY   = 'Init'   -- Constructor name
-	local STATIC_KEY = 'static' -- class=class_inst[STATIC_KEY]
-	local TYPECHECK  = true     -- Enforce class body type if true
+	local STATIC_KEY = 'static' -- Keyword of (i.e. class = class_inst[STATIC_KEY])
+	local TYPECHECK  = true     -- Sets whether the type of a class's body should be enforced
 
 	--------------------------------------------------------------
 
-	local err_btype  = 'Class body must be of type table (got %s)'
+	local err_btype = TYPECHECK and 'Class body must be of type table (got %s)'
 
-	local l_eventname = {
-		__eq     = true; __le       = true; __lt       = true; __add       = true;
-		__div    = true; __len      = true; __mod      = true; __mul       = true;
-		__pow    = true; __sub      = true; __unm      = true; __call      = true;
-		__concat = true; __newindex = true; __tostring = true; __metatable = true;
+	local eventname = {
+		__index = true, __newindex = true;
+		__gc = true, __mode = true, __len = true, __eq = true;
+		__add = true, __sub = true, __mul = true, __mod = true, __pow = true;
+		__div = true, __idiv = true;
+		__band = true, __bor = true, __bxor = true, __shl = true, __shr = true;
+		__unm = true, __bnot = true, __lt = true, __le = true;
+		__concat = true, __call = true;
 	}
 
 	local next  = next
@@ -30,6 +34,7 @@ local Class do
 	local getmt = getmetatable
 	local setmt = setmetatable
 
+	
 	local function Instantiate(t)
 		local mt, ctor, msto, cidx = {}, t[CTOR_KEY]
 		t[CTOR_KEY] = nil
@@ -42,24 +47,25 @@ local Class do
 			mt.__index = t
 		end
 		for i, j in next, t do
-			if l_eventname[i] then
+			if eventname[i] then
 				msto, t[i], mt[i] = true, nil, j
 			end
 		end
-		local call = ctor and function(_, ...)
+		local __ctor_wrapper = ctor and function(_, ...)
 			local this = setmt({}, mt)
 			ctor(this, ...)
 			return this
 		end or function()
 			return setmt({}, mt)
 		end
-		t[CTOR_KEY], t[STATIC_KEY] = call, t
+		t[CTOR_KEY], t[STATIC_KEY] = __ctor_wrapper, t
 		return setmt(t, {
 			msto and mt;
 			cidx;
-			__call = call;
+			__call = __ctor_wrapper;
 		})
 	end
+
 
 	local function EmptyInherit(t)
 		if TYPECHECK and type(t) ~= 'table' then
@@ -67,6 +73,7 @@ local Class do
 		end
 		return Instantiate(t)
 	end
+
 
 	function Class(...)
 		local a0 = ...
@@ -84,7 +91,7 @@ local Class do
 				repeat
 					for j, k in next, lv do
 						local ov = t[j]
-						if not (ov and ov ~= k or j == CTOR_KEY or j == STATIC_KEY) then
+						if not (ov and ov ~= k) and j ~= CTOR_KEY and j ~= STATIC_KEY then
 							t[j] = k
 						end
 					end
@@ -114,5 +121,6 @@ local Class do
 		end
 	end
 end
+
 
 return Class
