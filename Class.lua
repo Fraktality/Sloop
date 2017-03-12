@@ -12,7 +12,7 @@
 local Class do
 	
 	local CTOR_KEY   = 'Init'   -- Constructor name
-	local STATIC_KEY = 'static' -- Keyword of (i.e. class = class_inst[STATIC_KEY])
+	local STATIC_KEY = 'static' -- Key of a class instance used for accessing the class itself (i.e. class = class_inst[STATIC_KEY])
 	local TYPECHECK  = true     -- Sets whether the type of a class's body should be enforced
 
 	--------------------------------------------------------------
