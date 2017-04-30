@@ -20,7 +20,7 @@ local Class do
 	local err_btype = TYPECHECK and 'Class body must be of type table (got %s)'
 
 	local eventname = {
-		__index = true, __newindex = true;
+		__index = true, __newindex = true, __namecall = true;
 		__gc = true, __mode = true, __len = true, __eq = true;
 		__add = true, __sub = true, __mul = true, __mod = true, __pow = true;
 		__div = true, __idiv = true;
